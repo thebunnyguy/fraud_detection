@@ -1,0 +1,42 @@
+
+═══════════════════════════════════════════════════════════
+  FRAUD DETECTION — FULL SETUP SCRIPT
+  Mon Apr 13 13:15:42 IST 2026
+═══════════════════════════════════════════════════════════
+
+▶  [0] Verifying AWS credentials...
+   ✅ AWS Account: 476114148593
+
+▶  [1] Checking for creditcard.csv...
+   ✅ creditcard.csv exists (284807 rows)
+
+▶  [2] Training model and deploying SageMaker endpoint...
+   (Training ~2 min + endpoint deployment ~5-10 min)
+   Endpoint status: MISSING — running train_and_deploy.py...
+Traceback (most recent call last):
+  File "/Users/manuk/Downloads/projects/fraud_detection/model/train_and_deploy.py", line 22, in <module>
+    from xgboost import XGBClassifier
+  File "/Users/manuk/Downloads/projects/fraud_detection/venv/lib/python3.13/site-packages/xgboost/__init__.py", line 6, in <module>
+    from . import tracker  # noqa
+    ^^^^^^^^^^^^^^^^^^^^^
+  File "/Users/manuk/Downloads/projects/fraud_detection/venv/lib/python3.13/site-packages/xgboost/tracker.py", line 9, in <module>
+    from .core import _LIB, _check_call, _deprecate_positional_args, make_jcargs
+  File "/Users/manuk/Downloads/projects/fraud_detection/venv/lib/python3.13/site-packages/xgboost/core.py", line 309, in <module>
+    _LIB = _load_lib()
+  File "/Users/manuk/Downloads/projects/fraud_detection/venv/lib/python3.13/site-packages/xgboost/core.py", line 273, in _load_lib
+            raise XGBoostError(f"""
+    ...<11 lines>...
+    """)
+xgboost.core.XGBoostError: 
+XGBoost Library (libxgboost.dylib) could not be loaded.
+Likely causes:
+  * OpenMP runtime is not installed
+    - vcomp140.dll or libgomp-1.dll for Windows
+    - libomp.dylib for Mac OSX
+    - libgomp.so for Linux and other UNIX-like OSes
+    Mac OSX users: Run `brew install libomp` to install OpenMP runtime.
+
+  * You are running 32-bit Python on a 64-bit OS
+
+Error message(s): ["dlopen(/Users/manuk/Downloads/projects/fraud_detection/venv/lib/python3.13/site-packages/xgboost/lib/libxgboost.dylib, 0x0006): Library not loaded: @rpath/libomp.dylib\n  Referenced from: <1A0D8152-BF46-3BE0-B651-EE965C187777> /Users/manuk/Downloads/projects/fraud_detection/venv/lib/python3.13/site-packages/xgboost/lib/libxgboost.dylib\n  Reason: tried: '/opt/homebrew/opt/libomp/lib/libomp.dylib' (mach-o file, but is an incompatible architecture (have 'x86_64', need 'arm64e' or 'arm64e.v1' or 'arm64' or 'arm64')), '/System/Volumes/Preboot/Cryptexes/OS/opt/homebrew/opt/libomp/lib/libomp.dylib' (no such file), '/opt/homebrew/opt/libomp/lib/libomp.dylib' (mach-o file, but is an incompatible architecture (have 'x86_64', need 'arm64e' or 'arm64e.v1' or 'arm64' or 'arm64')), '/System/Volumes/Preboot/Cryptexes/OS/opt/homebrew/opt/libomp/lib/libomp.dylib' (no such file)"]
+

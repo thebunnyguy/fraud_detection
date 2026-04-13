@@ -1,0 +1,183 @@
+name: Fraud Detection CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  AWS_REGION: ap-south-1           # Mumbai — closest to Chennai
+  LAMBDA_FUNCTION_NAME: fraud-handler
+  # S3_BUCKET is set dynamically per job via "aws sts get-caller-identity"
+  # because the bucket suffix is the AWS account ID, not the GitHub username.
+
+jobs:
+  # ─────────────────────────────────────────
+  # JOB 1: Test
+  # ─────────────────────────────────────────
+  test:
+    name: Test & Lint
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install -r lambda/requirements.txt
+          pip install pytest pytest-cov flake8
+
+      - name: Lint with flake8
+        run: flake8 lambda/ --max-line-length=100 --ignore=E501,W503
+
+      - name: Run unit tests
+        run: |
+          PYTHONPATH=lambda pytest tests/ -v
+
+  # ─────────────────────────────────────────
+  # JOB 2: Build (only on push to main)
+  # ─────────────────────────────────────────
+  build:
+    name: Build & Upload to S3
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Set S3 bucket name from AWS account ID
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          echo "S3_BUCKET=fraud-detection-artifacts-${ACCOUNT_ID}" >> $GITHUB_ENV
+
+      - name: Install Lambda dependencies into package
+        run: |
+          pip install -r lambda/requirements.txt -t lambda/package/
+          cp lambda/*.py lambda/package/
+
+      - name: Zip Lambda package
+        run: |
+          cd lambda/package
+          zip -r ../../lambda_package.zip .
+          cd ../..
+          echo "Package size: $(du -sh lambda_package.zip)"
+
+      - name: Upload Lambda zip to S3
+        run: |
+          aws s3 cp lambda_package.zip \
+            s3://${{ env.S3_BUCKET }}/lambda/lambda_package_${{ github.sha }}.zip
+
+      - name: Save S3 key as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: build-meta
+          path: |
+            lambda_package.zip
+
+  # ─────────────────────────────────────────
+  # JOB 3: Deploy
+  # ─────────────────────────────────────────
+  deploy:
+    name: Deploy to AWS
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Download build artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: build-meta
+
+      - name: Update Lambda function code
+        run: |
+          echo "Deploying Lambda: ${{ env.LAMBDA_FUNCTION_NAME }}"
+          aws lambda update-function-code \
+            --function-name ${{ env.LAMBDA_FUNCTION_NAME }} \
+            --zip-file fileb://lambda_package.zip \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Wait for Lambda update to complete
+        run: |
+          aws lambda wait function-updated \
+            --function-name ${{ env.LAMBDA_FUNCTION_NAME }} \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Update Lambda environment variables
+        run: |
+          aws lambda update-function-configuration \
+            --function-name ${{ env.LAMBDA_FUNCTION_NAME }} \
+            --environment Variables="{
+              SAGEMAKER_ENDPOINT=${{ secrets.SAGEMAKER_ENDPOINT_NAME }},
+              DYNAMODB_TABLE=fraud-transactions,
+              SNS_TOPIC_ARN=${{ secrets.SNS_TOPIC_ARN }},
+              FRAUD_THRESHOLD=0.7
+            }" \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Smoke test — invoke Lambda
+        run: |
+          RESPONSE=$(aws lambda invoke \
+            --function-name ${{ env.LAMBDA_FUNCTION_NAME }} \
+            --payload '{"body": "{\"transaction_id\":\"smoke-test-001\",\"amount\":50,\"time\":1000,\"v1\":-1.3,\"v2\":0.5}"}' \
+            --cli-binary-format raw-in-base64-out \
+            /tmp/smoke_response.json \
+            --region ${{ env.AWS_REGION }})
+          cat /tmp/smoke_response.json
+          # Fail if statusCode is not 200
+          STATUS=$(python3 -c "import json; r=json.load(open('/tmp/smoke_response.json')); print(r.get('statusCode',500))")
+          if [ "$STATUS" != "200" ]; then
+            echo "Smoke test FAILED with status $STATUS"
+            exit 1
+          fi
+          echo "Smoke test PASSED"
+
+      - name: Notify deploy success
+        if: success()
+        run: |
+          aws sns publish \
+            --topic-arn ${{ secrets.SNS_TOPIC_ARN }} \
+            --subject "✅ Fraud Detection Deployed" \
+            --message "Commit ${{ github.sha }} deployed successfully to Lambda by ${{ github.actor }}" \
+            --region ${{ env.AWS_REGION }}
+
+      - name: Notify deploy failure
+        if: failure()
+        run: |
+          aws sns publish \
+            --topic-arn ${{ secrets.SNS_TOPIC_ARN }} \
+            --subject "❌ Fraud Detection Deploy FAILED" \
+            --message "Deployment of commit ${{ github.sha }} failed. Check logs: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}" \
+            --region ${{ env.AWS_REGION }}
