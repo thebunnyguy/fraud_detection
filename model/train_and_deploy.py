@@ -83,11 +83,12 @@ print(classification_report(y_test, y_pred, target_names=["Legit", "Fraud"]))
 print(f"ROC-AUC: {roc_auc_score(y_test, y_prob):.4f}")
 
 # ── 4. Save & package model for SageMaker ────────────────────
+# Save in XGBoost native format (works with standard XGBoost container)
 os.makedirs("model_output", exist_ok=True)
-joblib.dump(model, "model_output/model.joblib")
+model.save_model("model_output/xgboost-model")
 
 with tarfile.open("model.tar.gz", "w:gz") as tar:
-    tar.add("model_output/model.joblib", arcname="model.joblib")
+    tar.add("model_output/xgboost-model", arcname="xgboost-model")
 
 print("\nModel saved to model.tar.gz")
 
@@ -97,11 +98,9 @@ s3.upload_file("model.tar.gz", BUCKET, "model/model.tar.gz")
 model_s3_uri = f"s3://{BUCKET}/model/model.tar.gz"
 print(f"Uploaded to {model_s3_uri}")
 
-# ── 6. Deploy to SageMaker using boto3 directly ──────────────
+# ── 6. Deploy to SageMaker using boto3 with proper packaging ──────────────
 import json as _json
 import time as _time
-import tarfile
-import shutil
 
 # Get the IAM role ARN
 iam_client = boto3.client("iam", region_name=REGION)
@@ -136,24 +135,11 @@ if "sagemaker.amazonaws.com" not in principals:
 else:
     print("SageMaker trust already present in role.")
 
-# Package inference code with model
-print("\nPackaging model with inference code...")
-os.makedirs("code", exist_ok=True)
-shutil.copy(os.path.join(SCRIPT_DIR, "inference.py"), "code/inference.py")
-
-with tarfile.open("model.tar.gz", "w:gz") as tar:
-    tar.add("model_output/model.joblib", arcname="model.joblib")
-    tar.add("code/inference.py", arcname="code/inference.py")
-
-# Re-upload the complete package
-s3.upload_file("model.tar.gz", BUCKET, "model/model.tar.gz")
-print(f"Uploaded complete package to {model_s3_uri}")
-
-# Create SageMaker model using sklearn container
+# Create SageMaker client
 sm_client = boto3.client("sagemaker", region_name=REGION)
 
-# Use sklearn container image (hardcoded for ap-south-1)
-container_image = f"720646828776.dkr.ecr.{REGION}.amazonaws.com/sagemaker-scikit-learn:1.2-1-cpu-py3"
+# Use XGBoost container instead of sklearn (better compatibility)
+container_image = f"683313688378.dkr.ecr.{REGION}.amazonaws.com/sagemaker-xgboost:1.7-1"
 
 model_name = f"fraud-xgb-model-{int(_time.time())}"
 print(f"\nCreating SageMaker model: {model_name}")
@@ -164,10 +150,6 @@ try:
         PrimaryContainer={
             "Image": container_image,
             "ModelDataUrl": model_s3_uri,
-            "Environment": {
-                "SAGEMAKER_PROGRAM": "inference.py",
-                "SAGEMAKER_SUBMIT_DIRECTORY": model_s3_uri,
-            }
         },
         ExecutionRoleArn=role,
     )
@@ -193,23 +175,20 @@ try:
 except Exception as e:
     print(f"Endpoint config note: {e}")
 
-# Create or update endpoint
+# Create endpoint
 print(f"\nDeploying endpoint: {ENDPOINT_NAME} (this takes ~5-7 min)...")
 
 try:
-    # Try to update existing endpoint
-    sm_client.update_endpoint(
-        EndpointName=ENDPOINT_NAME,
-        EndpointConfigName=endpoint_config_name,
-    )
-    print(f"Updating existing endpoint: {ENDPOINT_NAME}")
-except sm_client.exceptions.ClientError:
-    # Create new endpoint if it doesn't exist
     sm_client.create_endpoint(
         EndpointName=ENDPOINT_NAME,
         EndpointConfigName=endpoint_config_name,
     )
     print(f"Creating new endpoint: {ENDPOINT_NAME}")
+except sm_client.exceptions.ClientError as e:
+    if "Cannot create already existing endpoint" in str(e):
+        print(f"Endpoint {ENDPOINT_NAME} already exists")
+    else:
+        raise
 
 print(f"✅ Endpoint deployment initiated: {ENDPOINT_NAME}")
 print("Run the following to check status:")
