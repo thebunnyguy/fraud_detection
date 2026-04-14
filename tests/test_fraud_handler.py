@@ -9,6 +9,7 @@ import pytest
 from unittest.mock import MagicMock, patch
 
 # Set env vars before importing the handler
+os.environ.setdefault("AWS_DEFAULT_REGION", "ap-south-1")
 os.environ.setdefault("SAGEMAKER_ENDPOINT", "fraud-xgb-endpoint")
 os.environ.setdefault("DYNAMODB_TABLE", "fraud-transactions")
 os.environ.setdefault("SNS_TOPIC_ARN", "arn:aws:sns:ap-south-1:123456789:fraud-alerts")
