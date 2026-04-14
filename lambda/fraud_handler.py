@@ -18,9 +18,9 @@ sagemaker_runtime = boto3.client("sagemaker-runtime")
 dynamodb = boto3.resource("dynamodb")
 sns_client = boto3.client("sns")
 
-ENDPOINT_NAME  = os.environ["SAGEMAKER_ENDPOINT"]
-TABLE_NAME     = os.environ["DYNAMODB_TABLE"]
-SNS_TOPIC_ARN  = os.environ["SNS_TOPIC_ARN"]
+ENDPOINT_NAME = os.environ["SAGEMAKER_ENDPOINT"]
+TABLE_NAME = os.environ["DYNAMODB_TABLE"]
+SNS_TOPIC_ARN = os.environ["SNS_TOPIC_ARN"]
 FRAUD_THRESHOLD = float(os.environ.get("FRAUD_THRESHOLD", "0.7"))
 
 # Feature order expected by the XGBoost model (Kaggle credit card dataset)
