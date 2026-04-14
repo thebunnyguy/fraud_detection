@@ -29,6 +29,7 @@ FEATURE_COLS = ["time", "amount"] + [f"v{i}" for i in range(1, 29)]
 # Load model once at cold start (reused across warm invocations)
 model = None
 
+
 def load_model():
     """Load XGBoost model from Lambda package."""
     global model
