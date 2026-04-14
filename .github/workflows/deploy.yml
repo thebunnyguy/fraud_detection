@@ -9,6 +9,7 @@ on:
 env:
   AWS_REGION: ap-south-1           # Mumbai — closest to Chennai
   LAMBDA_FUNCTION_NAME: fraud-handler
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
   # S3_BUCKET is set dynamically per job via "aws sts get-caller-identity"
   # because the bucket suffix is the AWS account ID, not the GitHub username.
 
