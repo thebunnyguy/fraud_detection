@@ -6,11 +6,11 @@ Run with: pytest tests/ -v
 import json
 import os
 import pytest
-from unittest.mock import MagicMock, patch
+import numpy as np
+from unittest.mock import MagicMock, patch, Mock
 
 # Set env vars before importing the handler
 os.environ.setdefault("AWS_DEFAULT_REGION", "ap-south-1")
-os.environ.setdefault("SAGEMAKER_ENDPOINT", "fraud-xgb-endpoint")
 os.environ.setdefault("DYNAMODB_TABLE", "fraud-transactions")
 os.environ.setdefault("SNS_TOPIC_ARN", "arn:aws:sns:ap-south-1:123456789:fraud-alerts")
 os.environ.setdefault("FRAUD_THRESHOLD", "0.7")
@@ -28,12 +28,13 @@ def _make_context():
 
 @patch("fraud_handler.sns_client")
 @patch("fraud_handler.dynamodb")
-@patch("fraud_handler.sagemaker_runtime")
-def test_legitimate_transaction(mock_sm, mock_dynamo, mock_sns):
+@patch("fraud_handler.load_model")
+def test_legitimate_transaction(mock_load_model, mock_dynamo, mock_sns):
     """Score below threshold → APPROVE, no SNS."""
-    mock_sm.invoke_endpoint.return_value = {
-        "Body": MagicMock(read=lambda: b"0.12")
-    }
+    # Mock model to return low fraud probability
+    mock_model = Mock()
+    mock_model.predict_proba.return_value = np.array([[0.88, 0.12]])  # [legit_prob, fraud_prob]
+    mock_load_model.return_value = mock_model
     mock_dynamo.Table.return_value.put_item = MagicMock()
 
     from fraud_handler import lambda_handler
@@ -54,12 +55,13 @@ def test_legitimate_transaction(mock_sm, mock_dynamo, mock_sns):
 
 @patch("fraud_handler.sns_client")
 @patch("fraud_handler.dynamodb")
-@patch("fraud_handler.sagemaker_runtime")
-def test_fraudulent_transaction(mock_sm, mock_dynamo, mock_sns):
+@patch("fraud_handler.load_model")
+def test_fraudulent_transaction(mock_load_model, mock_dynamo, mock_sns):
     """Score above threshold → BLOCK + SNS fired."""
-    mock_sm.invoke_endpoint.return_value = {
-        "Body": MagicMock(read=lambda: b"0.92")
-    }
+    # Mock model to return high fraud probability
+    mock_model = Mock()
+    mock_model.predict_proba.return_value = np.array([[0.08, 0.92]])  # [legit_prob, fraud_prob]
+    mock_load_model.return_value = mock_model
     mock_dynamo.Table.return_value.put_item = MagicMock()
     mock_sns.publish = MagicMock()
 
@@ -79,10 +81,12 @@ def test_fraudulent_transaction(mock_sm, mock_dynamo, mock_sns):
     mock_sns.publish.assert_called_once()
 
 
-@patch("fraud_handler.sagemaker_runtime")
-def test_bad_request_returns_400(mock_sm):
+@patch("fraud_handler.load_model")
+def test_bad_request_returns_400(mock_load_model):
     """Malformed body → 400."""
-    mock_sm.invoke_endpoint.side_effect = Exception("unexpected")
+    mock_model = Mock()
+    mock_model.predict_proba.side_effect = Exception("unexpected")
+    mock_load_model.return_value = mock_model
 
     from fraud_handler import lambda_handler
 
@@ -93,12 +97,13 @@ def test_bad_request_returns_400(mock_sm):
 
 @patch("fraud_handler.sns_client")
 @patch("fraud_handler.dynamodb")
-@patch("fraud_handler.sagemaker_runtime")
-def test_dynamodb_write_called(mock_sm, mock_dynamo, mock_sns):
+@patch("fraud_handler.load_model")
+def test_dynamodb_write_called(mock_load_model, mock_dynamo, mock_sns):
     """Ensure every transaction is persisted to DynamoDB."""
-    mock_sm.invoke_endpoint.return_value = {
-        "Body": MagicMock(read=lambda: b"0.05")
-    }
+    # Mock model to return low fraud probability
+    mock_model = Mock()
+    mock_model.predict_proba.return_value = np.array([[0.95, 0.05]])
+    mock_load_model.return_value = mock_model
     mock_table = MagicMock()
     mock_dynamo.Table.return_value = mock_table
 
