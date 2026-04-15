@@ -234,4 +234,68 @@ flake8 lambda/ --max-line-length=100 --ignore=E501,W503
 
 ---
 
-*Last Updated: 2026-04-14*
+## Issue 6: Interpreter Mismatch in Active Virtual Environment
+
+**Date**: 2026-04-16  
+**Component**: Test Execution (`pytest`)  
+**Error**: 
+```
+ModuleNotFoundError: No module named 'flask'
+ModuleNotFoundError: No module named 'numpy'
+```
+
+**Symptom**: Tests fail with import errors despite packages being installed and virtual environment being active.
+
+**Root Cause**: Virtual environment was active (`source venv/bin/activate`), but `pytest` resolved to the global system executable instead of the venv interpreter. This caused tests to run with the wrong Python environment, missing all venv-installed dependencies.
+
+**Evidence**:
+```bash
+$ which python
+/Users/manuk/Downloads/projects/fraud_detection/venv/bin/python  # ✅ correct
+
+$ which pytest
+/Library/Frameworks/Python.framework/Versions/3.13/bin/pytest  # ❌ wrong (global)
+```
+
+**Attempted Solutions**:
+1. ❌ Assumed missing dependencies, tried reinstalling packages
+2. ❌ Modified test imports and PYTHONPATH
+3. ❌ Deleted test files thinking they were obsolete
+4. ✅ Used `python -m pytest` to force venv interpreter
+
+**Correct Fix**:
+```bash
+# Instead of bare pytest
+pytest tests/ -v  # ❌ uses global pytest
+
+# Use module invocation
+python -m pytest tests/test_app.py -v  # ✅ uses venv python
+
+# Or use explicit venv path
+./venv/bin/python -m pytest tests/test_app.py -v  # ✅ explicit venv
+```
+
+**CI/CD Fix** (`.github/workflows/oracle-deploy.yml`):
+```yaml
+- name: Install dependencies
+  run: |
+    python -m pip install -r requirements.txt
+    python -m pip install pytest pytest-cov
+
+- name: Run tests
+  run: |
+    PYTHONPATH=. python -m pytest tests/test_app.py -v
+```
+
+**Prevention**:
+- Always use `python -m pytest` instead of bare `pytest`
+- Always use `python -m pip` instead of bare `pip`
+- When a package seems "installed but not found," verify interpreter alignment with `which python` vs `which <command>` before changing code or deleting tests
+- In CI, prefer module invocation (`python -m`) for all Python tools to ensure correct interpreter
+- Run only active tests (`test_app.py` for Oracle deployment, not old AWS Lambda tests)
+
+**Files Modified**: `.github/workflows/oracle-deploy.yml`
+
+---
+
+*Last Updated: 2026-04-16*
