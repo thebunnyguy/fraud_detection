@@ -1,0 +1,122 @@
+name: Oracle Cloud Deployment
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+env:
+  DOCKER_IMAGE: fraud-detection-api
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+jobs:
+  test:
+    name: Test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v6
+        with:
+          python-version: "3.11"
+          cache: "pip"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install pytest pytest-cov
+
+      - name: Run tests
+        run: |
+          pytest tests/ -v
+
+  build:
+    name: Build Docker Image
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Build Docker image
+        run: |
+          docker build -t ${{ env.DOCKER_IMAGE }}:${{ github.sha }} .
+          docker tag ${{ env.DOCKER_IMAGE }}:${{ github.sha }} ${{ env.DOCKER_IMAGE }}:latest
+
+      - name: Save Docker image
+        run: |
+          docker save ${{ env.DOCKER_IMAGE }}:latest | gzip > fraud-detection-api.tar.gz
+
+      - name: Upload Docker image artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docker-image
+          path: fraud-detection-api.tar.gz
+
+  deploy:
+    name: Deploy to Oracle Cloud
+    needs: build
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Download Docker image
+        uses: actions/download-artifact@v4
+        with:
+          name: docker-image
+
+      - name: Deploy to Oracle Cloud VM
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.ORACLE_SSH_KEY }}
+          ORACLE_HOST: ${{ secrets.ORACLE_HOST }}
+          ORACLE_USER: ${{ secrets.ORACLE_USER }}
+        run: |
+          # Setup SSH
+          mkdir -p ~/.ssh
+          echo "$SSH_PRIVATE_KEY" > ~/.ssh/oracle_key
+          chmod 600 ~/.ssh/oracle_key
+          ssh-keyscan -H $ORACLE_HOST >> ~/.ssh/known_hosts
+
+          # Copy Docker image to VM
+          scp -i ~/.ssh/oracle_key fraud-detection-api.tar.gz $ORACLE_USER@$ORACLE_HOST:/tmp/
+
+          # Deploy on VM
+          ssh -i ~/.ssh/oracle_key $ORACLE_USER@$ORACLE_HOST << 'EOF'
+            # Load Docker image
+            docker load < /tmp/fraud-detection-api.tar.gz
+
+            # Stop existing container
+            docker stop fraud-api || true
+            docker rm fraud-api || true
+
+            # Run new container
+            docker run -d \
+              --name fraud-api \
+              --restart unless-stopped \
+              -p 8080:8080 \
+              -v /opt/fraud-detection/data:/app/data \
+              -e FRAUD_THRESHOLD=0.7 \
+              -e DB_PATH=/app/data/fraud_transactions.db \
+              fraud-detection-api:latest
+
+            # Cleanup
+            rm /tmp/fraud-detection-api.tar.gz
+            docker image prune -f
+          EOF
+
+      - name: Health check
+        env:
+          ORACLE_HOST: ${{ secrets.ORACLE_HOST }}
+        run: |
+          sleep 10
+          curl -f http://$ORACLE_HOST:8080/health || exit 1
+          echo "✅ Deployment successful and health check passed"
