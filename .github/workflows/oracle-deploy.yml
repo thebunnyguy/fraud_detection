@@ -27,12 +27,12 @@ jobs:
 
       - name: Install dependencies
         run: |
-          pip install -r requirements.txt
-          pip install pytest pytest-cov
+          python -m pip install -r requirements.txt
+          python -m pip install pytest pytest-cov
 
       - name: Run tests
         run: |
-          pytest tests/ -v
+          PYTHONPATH=. python -m pytest tests/test_app.py -v
 
   build:
     name: Build Docker Image
