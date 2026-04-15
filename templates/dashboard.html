@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fraud Detection Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+
+        .fade-in { animation: fadeIn 0.3s ease-in-out; }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(5px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+    </style>
+</head>
+<body class="bg-slate-50 text-slate-800 font-sans min-h-screen flex flex-col p-4 md:p-8">
+
+    <div class="max-w-6xl mx-auto w-full space-y-6">
+
+        <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+            <div class="flex items-center gap-3">
+                <div class="p-2 bg-indigo-50 text-indigo-600 rounded-lg">
+                    <i data-lucide="shield-alert" class="w-6 h-6"></i>
+                </div>
+                <div>
+                    <h1 class="text-xl font-bold text-slate-900">Fraud Detection System</h1>
+                    <p class="text-sm text-slate-500">Live Transaction Monitoring</p>
+                </div>
+            </div>
+
+            <div class="mt-4 sm:mt-0 flex items-center gap-2 px-4 py-2 bg-slate-50 rounded-full border border-slate-200">
+                <span class="relative flex h-3 w-3">
+                    <span id="status-ping" class="animate-ping absolute inline-flex h-full w-full rounded-full bg-slate-400 opacity-75"></span>
+                    <span id="status-dot" class="relative inline-flex rounded-full h-3 w-3 bg-slate-500"></span>
+                </span>
+                <span id="status-text" class="text-sm font-medium text-slate-600">Checking API...</span>
+            </div>
+        </header>
+
+        <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+            <div class="lg:col-span-5 bg-white p-6 rounded-2xl shadow-sm border border-slate-100">
+                <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <i data-lucide="activity" class="w-5 h-5 text-slate-400"></i>
+                    New Transaction
+                </h2>
+                <div class="flex gap-2 mb-4">
+                    <button type="button" onclick="loadLegitSample()" class="flex-1 px-3 py-2 bg-emerald-50 text-emerald-700 text-sm font-medium rounded-lg hover:bg-emerald-100 transition-colors flex items-center justify-center gap-2">
+                        <i data-lucide="check-circle" class="w-4 h-4"></i>
+                        Load Legit Sample
+                    </button>
+                    <button type="button" onclick="loadFraudSample()" class="flex-1 px-3 py-2 bg-rose-50 text-rose-700 text-sm font-medium rounded-lg hover:bg-rose-100 transition-colors flex items-center justify-center gap-2">
+                        <i data-lucide="alert-triangle" class="w-4 h-4"></i>
+                        Load Fraud Sample
+                    </button>
+                </div>
+                <form id="score-form" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-slate-600 mb-1">Transaction ID</label>
+                        <input type="text" id="txn_id" required placeholder="TXN-998273"
+                            class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all">
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-600 mb-1">Amount ($)</label>
+                            <input type="number" step="0.01" id="amount" required placeholder="150.00"
+                                class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-600 mb-1">Time</label>
+                            <input type="number" id="time" required placeholder="0"
+                                class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all">
+                        </div>
+                    </div>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-slate-600 mb-1">V1 Feature</label>
+                            <input type="number" step="any" id="v1" required placeholder="-1.359"
+                                class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-slate-600 mb-1">V2 Feature</label>
+                            <input type="number" step="any" id="v2" required placeholder="1.191"
+                                class="w-full px-4 py-2 bg-slate-50 border border-slate-200 rounded-xl focus:ring-2 focus:ring-indigo-500 focus:border-indigo-500 outline-none transition-all">
+                        </div>
+                    </div>
+                    <button type="submit" id="submit-btn"
+                        class="w-full mt-2 bg-indigo-600 hover:bg-indigo-700 text-white font-medium py-2.5 px-4 rounded-xl transition-colors flex justify-center items-center gap-2">
+                        <span>Check Fraud</span>
+                        <i data-lucide="arrow-right" class="w-4 h-4"></i>
+                    </button>
+                </form>
+            </div>
+
+            <div class="lg:col-span-7 bg-white p-6 rounded-2xl shadow-sm border border-slate-100 flex flex-col">
+                <h2 class="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <i data-lucide="cpu" class="w-5 h-5 text-slate-400"></i>
+                    Analysis Result
+                </h2>
+
+                <div id="result-empty" class="flex-1 flex flex-col items-center justify-center text-slate-400 py-8">
+                    <i data-lucide="scan-search" class="w-12 h-12 mb-3 opacity-50"></i>
+                    <p>Submit a transaction to see the analysis</p>
+                </div>
+
+                <div id="result-active" class="hidden fade-in h-full flex flex-col justify-between">
+                    <div class="flex items-start justify-between mb-6">
+                        <div>
+                            <p class="text-sm text-slate-500 mb-1">Transaction ID</p>
+                            <p id="res-id" class="font-mono font-medium text-slate-800">---</p>
+                        </div>
+                        <div id="res-badge" class="px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1.5">
+                            <span id="res-icon"></span>
+                            <span id="res-decision">---</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-slate-50 rounded-xl p-6 border border-slate-100 flex-1 flex flex-col items-center justify-center text-center">
+                        <p class="text-sm font-medium text-slate-500 uppercase tracking-wider mb-2">Fraud Score</p>
+                        <div class="flex items-baseline gap-1">
+                            <span id="res-score" class="text-5xl font-bold text-slate-800">0.00</span>
+                            <span class="text-slate-400 font-medium">/ 1.0</span>
+                        </div>
+
+                        <div class="w-full max-w-xs mt-6 bg-slate-200 rounded-full h-2.5 overflow-hidden">
+                            <div id="res-bar" class="h-2.5 rounded-full transition-all duration-1000 w-0"></div>
+                        </div>
+                        <p id="res-msg" class="mt-4 text-sm text-slate-600 max-w-sm">---</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+        <div class="bg-white rounded-2xl shadow-sm border border-slate-100 overflow-hidden">
+            <div class="p-6 border-b border-slate-100 flex justify-between items-center">
+                <h2 class="text-lg font-semibold flex items-center gap-2">
+                    <i data-lucide="history" class="w-5 h-5 text-slate-400"></i>
+                    Recent Transactions
+                </h2>
+                <button onclick="loadTransactions()" class="text-slate-400 hover:text-indigo-600 transition-colors">
+                    <i data-lucide="refresh-cw" class="w-5 h-5"></i>
+                </button>
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-left border-collapse">
+                    <thead>
+                        <tr class="bg-slate-50 text-slate-500 text-sm">
+                            <th class="py-3 px-6 font-medium">Transaction ID</th>
+                            <th class="py-3 px-6 font-medium">Amount</th>
+                            <th class="py-3 px-6 font-medium">Score</th>
+                            <th class="py-3 px-6 font-medium">Status</th>
+                        </tr>
+                    </thead>
+                    <tbody id="transactions-body" class="divide-y divide-slate-100 text-sm">
+                        <tr>
+                            <td colspan="4" class="py-8 text-center text-slate-400">Loading transactions...</td>
+                        </tr>
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        lucide.createIcons();
+
+        const API = {
+            health: '/health',
+            score: '/score',
+            transactions: '/transactions',
+            demoSamples: '/demo-samples'
+        };
+
+        let demoSamples = null;
+
+        async function loadDemoSamples() {
+            if (!demoSamples) {
+                const response = await fetch(API.demoSamples);
+                demoSamples = await response.json();
+            }
+            return demoSamples;
+        }
+
+        async function loadLegitSample() {
+            const samples = await loadDemoSamples();
+            fillForm(samples.legitimate);
+            lucide.createIcons();
+        }
+
+        async function loadFraudSample() {
+            const samples = await loadDemoSamples();
+            fillForm(samples.fraudulent);
+            lucide.createIcons();
+        }
+
+        function fillForm(data) {
+            document.getElementById('txn_id').value = data.transaction_id;
+            document.getElementById('amount').value = data.amount;
+            document.getElementById('time').value = data.time;
+            document.getElementById('v1').value = data.v1;
+            document.getElementById('v2').value = data.v2;
+        }
+
+        async function checkHealth() {
+            const dot = document.getElementById('status-dot');
+            const ping = document.getElementById('status-ping');
+            const text = document.getElementById('status-text');
+
+            try {
+                const response = await fetch(API.health);
+                if (!response.ok) throw new Error();
+
+                dot.className = 'relative inline-flex rounded-full h-3 w-3 bg-emerald-500';
+                ping.className = 'animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75';
+                text.textContent = 'API Live';
+                text.className = 'text-sm font-medium text-emerald-700';
+            } catch (e) {
+                dot.className = 'relative inline-flex rounded-full h-3 w-3 bg-rose-500';
+                ping.style.display = 'none';
+                text.textContent = 'API Offline';
+                text.className = 'text-sm font-medium text-rose-700';
+            }
+        }
+
+        async function loadTransactions() {
+            const tbody = document.getElementById('transactions-body');
+            tbody.innerHTML = '<tr><td colspan="4" class="py-6 text-center text-slate-400"><i data-lucide="loader" class="w-5 h-5 mx-auto animate-spin"></i></td></tr>';
+            lucide.createIcons();
+
+            try {
+                const response = await fetch(API.transactions);
+                const data = await response.json();
+                const transactions = data.transactions || [];
+
+                if (transactions.length === 0) {
+                    tbody.innerHTML = '<tr><td colspan="4" class="py-6 text-center text-slate-400">No recent transactions found.</td></tr>';
+                    return;
+                }
+
+                tbody.innerHTML = transactions.map(t => {
+                    const isFraud = t.is_fraud || t.fraud_score > 0.5;
+                    const statusColor = isFraud ? 'text-rose-600 bg-rose-50' : 'text-emerald-600 bg-emerald-50';
+                    const statusText = isFraud ? 'Declined' : 'Approved';
+
+                    return `
+                        <tr class="hover:bg-slate-50/50 transition-colors">
+                            <td class="py-3 px-6 font-mono text-slate-700">${t.transaction_id}</td>
+                            <td class="py-3 px-6 text-slate-700">$${parseFloat(t.amount || 0).toFixed(2)}</td>
+                            <td class="py-3 px-6">
+                                <span class="font-medium ${isFraud ? 'text-rose-600' : 'text-slate-600'}">
+                                    ${parseFloat(t.fraud_score).toFixed(3)}
+                                </span>
+                            </td>
+                            <td class="py-3 px-6">
+                                <span class="px-2.5 py-1 rounded-full text-xs font-medium ${statusColor}">
+                                    ${statusText}
+                                </span>
+                            </td>
+                        </tr>
+                    `;
+                }).join('');
+            } catch (e) {
+                tbody.innerHTML = '<tr><td colspan="4" class="py-6 text-center text-rose-400">Failed to load transactions</td></tr>';
+            }
+        }
+
+        document.getElementById('score-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+
+            const btn = document.getElementById('submit-btn');
+            const originalBtnText = btn.innerHTML;
+            btn.innerHTML = '<i data-lucide="loader" class="w-5 h-5 animate-spin"></i> Analyzing...';
+            btn.disabled = true;
+            lucide.createIcons();
+
+            const payload = {
+                transaction_id: document.getElementById('txn_id').value,
+                amount: parseFloat(document.getElementById('amount').value),
+                time: parseFloat(document.getElementById('time').value),
+                v1: parseFloat(document.getElementById('v1').value),
+                v2: parseFloat(document.getElementById('v2').value)
+            };
+
+            // Add v3-v28 from demo sample if available
+            const samples = await loadDemoSamples();
+            const currentTxnId = payload.transaction_id;
+            let sourceData = null;
+
+            if (currentTxnId.includes('LEGIT')) {
+                sourceData = samples.legitimate;
+            } else if (currentTxnId.includes('FRAUD')) {
+                sourceData = samples.fraudulent;
+            }
+
+            if (sourceData) {
+                for (let i = 3; i <= 28; i++) {
+                    payload[`v${i}`] = sourceData[`v${i}`];
+                }
+            }
+
+            try {
+                const response = await fetch(API.score, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+                updateResultCard(data);
+                await loadTransactions();
+            } catch (e) {
+                alert('Failed to score transaction: ' + e.message);
+            }
+
+            btn.innerHTML = originalBtnText;
+            btn.disabled = false;
+            lucide.createIcons();
+        });
+
+        function updateResultCard(data) {
+            document.getElementById('result-empty').classList.add('hidden');
+            const activeResult = document.getElementById('result-active');
+            activeResult.classList.remove('hidden');
+
+            const score = parseFloat(data.fraud_score);
+            const isFraud = data.is_fraud;
+
+            document.getElementById('res-id').textContent = data.transaction_id;
+            document.getElementById('res-score').textContent = score.toFixed(3);
+
+            const bar = document.getElementById('res-bar');
+            bar.style.width = `${Math.min(score * 100, 100)}%`;
+
+            const badge = document.getElementById('res-badge');
+            const msg = document.getElementById('res-msg');
+            const scoreEl = document.getElementById('res-score');
+
+            if (isFraud) {
+                badge.className = 'px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1.5 bg-rose-100 text-rose-700';
+                badge.innerHTML = '<i data-lucide="alert-triangle" class="w-4 h-4"></i><span id="res-decision">Decline</span>';
+                bar.className = 'h-2.5 rounded-full transition-all duration-1000 w-0 bg-rose-500';
+                msg.textContent = 'High risk detected. Transaction flagged and blocked according to security policy.';
+                scoreEl.className = 'text-5xl font-bold text-rose-600';
+            } else {
+                badge.className = 'px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1.5 bg-emerald-100 text-emerald-700';
+                badge.innerHTML = '<i data-lucide="check-circle" class="w-4 h-4"></i><span id="res-decision">Approve</span>';
+                bar.className = 'h-2.5 rounded-full transition-all duration-1000 w-0 bg-emerald-500';
+                msg.textContent = 'Transaction appears normal. Behavior matches expected patterns.';
+                scoreEl.className = 'text-5xl font-bold text-slate-800';
+            }
+
+            lucide.createIcons();
+        }
+
+        document.addEventListener('DOMContentLoaded', () => {
+            checkHealth();
+            loadTransactions();
+        });
+    </script>
+</body>
+</html>
