@@ -137,6 +137,19 @@ jobs:
             --function-name ${{ env.LAMBDA_FUNCTION_NAME }} \
             --region ${{ env.AWS_REGION }}
 
+      - name: Attach Lambda layer
+        run: |
+          ACCOUNT_ID=$(aws sts get-caller-identity --query Account --output text)
+          LAYER_ARN="arn:aws:lambda:${{ env.AWS_REGION }}:${ACCOUNT_ID}:layer:fraud-detection-ml-layer:1"
+          echo "Attaching layer: ${LAYER_ARN}"
+          aws lambda update-function-configuration \
+            --function-name ${{ env.LAMBDA_FUNCTION_NAME }} \
+            --layers ${LAYER_ARN} \
+            --region ${{ env.AWS_REGION }}
+          aws lambda wait function-updated \
+            --function-name ${{ env.LAMBDA_FUNCTION_NAME }} \
+            --region ${{ env.AWS_REGION }}
+
       - name: Update Lambda environment variables
         run: |
           aws lambda update-function-configuration \
