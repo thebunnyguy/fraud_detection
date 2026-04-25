@@ -174,7 +174,7 @@
 
         const API = {
             health: '/health',
-            score: '/score',
+            score: '/predict',
             transactions: '/transactions',
             demoSamples: '/demo-samples'
         };
@@ -191,13 +191,13 @@
 
         async function loadLegitSample() {
             const samples = await loadDemoSamples();
-            fillForm(samples.legitimate);
+            fillForm(samples.low_risk);
             lucide.createIcons();
         }
 
         async function loadFraudSample() {
             const samples = await loadDemoSamples();
-            fillForm(samples.fraudulent);
+            fillForm(samples.high_risk);
             lucide.createIcons();
         }
 
@@ -295,9 +295,9 @@
             let sourceData = null;
 
             if (currentTxnId.includes('LEGIT')) {
-                sourceData = samples.legitimate;
-            } else if (currentTxnId.includes('FRAUD')) {
-                sourceData = samples.fraudulent;
+                sourceData = samples.low_risk;
+            } else if (currentTxnId.includes('BLOCK') || currentTxnId.includes('FRAUD')) {
+                sourceData = samples.high_risk;
             }
 
             if (sourceData) {
@@ -330,8 +330,10 @@
             const activeResult = document.getElementById('result-active');
             activeResult.classList.remove('hidden');
 
-            const score = parseFloat(data.fraud_score);
-            const isFraud = data.is_fraud;
+            const score = parseFloat(data.fraud_probability);
+            const decision = data.decision; // 'APPROVE', 'REVIEW', or 'BLOCK'
+            const isBlock = decision === 'BLOCK';
+            const isReview = decision === 'REVIEW';
 
             document.getElementById('res-id').textContent = data.transaction_id;
             document.getElementById('res-score').textContent = score.toFixed(3);
@@ -343,17 +345,23 @@
             const msg = document.getElementById('res-msg');
             const scoreEl = document.getElementById('res-score');
 
-            if (isFraud) {
+            if (isBlock) {
                 badge.className = 'px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1.5 bg-rose-100 text-rose-700';
-                badge.innerHTML = '<i data-lucide="alert-triangle" class="w-4 h-4"></i><span id="res-decision">Decline</span>';
+                badge.innerHTML = '<i data-lucide="alert-triangle" class="w-4 h-4"></i><span id="res-decision">BLOCK</span>';
                 bar.className = 'h-2.5 rounded-full transition-all duration-1000 w-0 bg-rose-500';
-                msg.textContent = 'High risk detected. Transaction flagged and blocked according to security policy.';
+                msg.textContent = 'High risk detected. Transaction flagged and blocked. Risk score: ' + data.risk_score;
                 scoreEl.className = 'text-5xl font-bold text-rose-600';
+            } else if (isReview) {
+                badge.className = 'px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1.5 bg-amber-100 text-amber-700';
+                badge.innerHTML = '<i data-lucide="eye" class="w-4 h-4"></i><span id="res-decision">REVIEW</span>';
+                bar.className = 'h-2.5 rounded-full transition-all duration-1000 w-0 bg-amber-500';
+                msg.textContent = 'Medium risk — flagged for manual review. Risk score: ' + data.risk_score;
+                scoreEl.className = 'text-5xl font-bold text-amber-600';
             } else {
                 badge.className = 'px-3 py-1 rounded-full text-sm font-medium flex items-center gap-1.5 bg-emerald-100 text-emerald-700';
-                badge.innerHTML = '<i data-lucide="check-circle" class="w-4 h-4"></i><span id="res-decision">Approve</span>';
+                badge.innerHTML = '<i data-lucide="check-circle" class="w-4 h-4"></i><span id="res-decision">APPROVE</span>';
                 bar.className = 'h-2.5 rounded-full transition-all duration-1000 w-0 bg-emerald-500';
-                msg.textContent = 'Transaction appears normal. Behavior matches expected patterns.';
+                msg.textContent = 'Transaction appears normal. Risk score: ' + data.risk_score;
                 scoreEl.className = 'text-5xl font-bold text-slate-800';
             }
 
