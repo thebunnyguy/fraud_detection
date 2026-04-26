@@ -46,7 +46,8 @@ def init_db():
             anomaly_score REAL,
             risk_score INTEGER,
             decision TEXT,
-            amount REAL
+            amount REAL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP
         )
     """)
     conn.commit()

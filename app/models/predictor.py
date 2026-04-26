@@ -2,6 +2,7 @@
 Predictor module - runs XGBoost fraud prediction
 """
 import numpy as np
+import pandas as pd
 from app.models.loader import ModelLoader
 
 
@@ -22,11 +23,15 @@ class FraudPredictor:
             Fraud probability [0, 1]
         """
         model = self.loader.get_xgboost_model()
-        prob = model.predict_proba(features)[0, 1]
+        cols = self.loader.get_feature_cols()
+        df = pd.DataFrame(features, columns=cols)
+        prob = model.predict_proba(df)[0, 1]
         return float(prob)
 
     def predict_batch(self, features: np.ndarray) -> np.ndarray:
         """Predict fraud probabilities for multiple transactions"""
         model = self.loader.get_xgboost_model()
-        probs = model.predict_proba(features)[:, 1]
+        cols = self.loader.get_feature_cols()
+        df = pd.DataFrame(features, columns=cols)
+        probs = model.predict_proba(df)[:, 1]
         return probs

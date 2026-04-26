@@ -283,13 +283,13 @@
 
             const payload = {
                 transaction_id: document.getElementById('txn_id').value,
-                amount: parseFloat(document.getElementById('amount').value),
-                time: parseFloat(document.getElementById('time').value),
-                v1: parseFloat(document.getElementById('v1').value),
-                v2: parseFloat(document.getElementById('v2').value)
+                amount: parseFloat(document.getElementById('amount').value) || 0,
+                time: parseFloat(document.getElementById('time').value) || 0,
+                v1: parseFloat(document.getElementById('v1').value) || 0,
+                v2: parseFloat(document.getElementById('v2').value) || 0
             };
 
-            // Add v3-v28 from demo sample if available
+            // Fill v3-v28 — use demo sample values if ID matches, otherwise default to 0.0
             const samples = await loadDemoSamples();
             const currentTxnId = payload.transaction_id;
             let sourceData = null;
@@ -298,12 +298,12 @@
                 sourceData = samples.low_risk;
             } else if (currentTxnId.includes('BLOCK') || currentTxnId.includes('FRAUD')) {
                 sourceData = samples.high_risk;
+            } else if (currentTxnId.includes('REVIEW')) {
+                sourceData = samples.medium_risk;
             }
 
-            if (sourceData) {
-                for (let i = 3; i <= 28; i++) {
-                    payload[`v${i}`] = sourceData[`v${i}`];
-                }
+            for (let i = 3; i <= 28; i++) {
+                payload[`v${i}`] = sourceData ? (sourceData[`v${i}`] || 0) : 0;
             }
 
             try {
@@ -314,10 +314,15 @@
                 });
 
                 const data = await response.json();
-                updateResultCard(data);
-                await loadTransactions();
+
+                if (!response.ok) {
+                    showError(data.error || 'Prediction failed. Check server logs.');
+                } else {
+                    updateResultCard(data);
+                    await loadTransactions();
+                }
             } catch (e) {
-                alert('Failed to score transaction: ' + e.message);
+                showError('Could not reach the API: ' + e.message);
             }
 
             btn.innerHTML = originalBtnText;
@@ -368,8 +373,23 @@
             lucide.createIcons();
         }
 
+        function showError(message) {
+            document.getElementById('result-empty').classList.add('hidden');
+            const activeResult = document.getElementById('result-active');
+            activeResult.classList.remove('hidden');
+            activeResult.innerHTML = `
+                <div class="flex flex-col items-center justify-center h-full py-8 text-rose-500">
+                    <i data-lucide="alert-circle" class="w-10 h-10 mb-3"></i>
+                    <p class="font-medium">Prediction Error</p>
+                    <p class="text-sm text-rose-400 mt-1 text-center max-w-xs">${message}</p>
+                </div>
+            `;
+            lucide.createIcons();
+        }
+
         document.addEventListener('DOMContentLoaded', () => {
             checkHealth();
+            setInterval(checkHealth, 30000); // Re-poll every 30 seconds
             loadTransactions();
         });
     </script>
