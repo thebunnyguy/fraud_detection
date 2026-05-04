@@ -250,6 +250,7 @@ def test_demo_samples_endpoint(client):
     response = client.get('/demo-samples')
     assert response.status_code == 200
     data = json.loads(response.data)
-    assert 'legitimate' in data
-    assert 'fraudulent' in data
-    assert 'transaction_id' in data['legitimate']
+    assert 'low_risk' in data
+    assert 'medium_risk' in data
+    assert 'high_risk' in data
+    assert 'transaction_id' in data['low_risk']
